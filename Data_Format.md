@@ -8,7 +8,7 @@ In the two collected datasets, there are many types of news, such as 'True', 'Fa
 The mapping function is as follows:
 
 * 'True' or 'true' is unified as 'True'.
-* 'pants-fire', 'hale-true', 'mostly-true', 'barely-true', 'half', 'false', 'False' are all unified as 'False'. That means "If the label is not true, then it is assigned the value 'False'."
+* 'pants-fire', 'half-true', 'mostly-true', 'barely-true', 'half', 'false', 'False' are all unified as 'False'. That means "If the label is not true, then it is assigned the value 'False'."
 
 ## Raw Data Format
 - "event_id": "8340.json"
