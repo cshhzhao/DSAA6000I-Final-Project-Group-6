@@ -68,7 +68,6 @@ class Parser:
         mode_choice = ["train", "test", "val"]
         assert mode in mode_choice
 
-        self.processed_json = json.dumps(self.collated_dataset)
-        with open("./datasets/Input/LIAR-RAW/" + f"{mode}.json", "w+") as file:
-            file.write(self.processed_json)
-        return self.processed_json
+        with open("./datasets/Input/LIAR-RAW/" + f"{mode}.json", "w", encoding='utf-8') as file:
+            json.dump(self.collated_dataset, file, ensure_ascii=False, indent=4)
+
