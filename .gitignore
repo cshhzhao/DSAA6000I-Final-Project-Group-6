@@ -1,1 +1,3 @@
 data_output_path/bz4
+training_output/pytorch_model.bin
+training_output/tokenizer.model
