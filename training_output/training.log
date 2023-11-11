@@ -270,3 +270,20 @@ Parameter Offload: Total persistent parameters: 266240 in 65 params
 }
 ***** Running training *****
 ***** Evaluating perplexity, Epoch 0/5 *****
+ppl: (24.656848907470703, 54577995776.0)
+Beginning of Epoch 1/5, Total Micro Batches 1460
+/home/haihongzhao/anaconda3/envs/dsaa6000i/lib/python3.10/site-packages/torch/utils/checkpoint.py:429: UserWarning: torch.utils.checkpoint: please pass in use_reentrant=True or use_reentrant=False explicitly. The default value of use_reentrant will be updated to be False in the future. To maintain current behavior, pass use_reentrant=True. It is recommended that you use use_reentrant=False. Refer to docs for more details on the differences between the two variants.
+  warnings.warn(
+/home/haihongzhao/anaconda3/envs/dsaa6000i/lib/python3.10/site-packages/torch/utils/checkpoint.py:429: UserWarning: torch.utils.checkpoint: please pass in use_reentrant=True or use_reentrant=False explicitly. The default value of use_reentrant will be updated to be False in the future. To maintain current behavior, pass use_reentrant=True. It is recommended that you use use_reentrant=False. Refer to docs for more details on the differences between the two variants.
+  warnings.warn(
+/home/haihongzhao/anaconda3/envs/dsaa6000i/lib/python3.10/site-packages/torch/utils/checkpoint.py:429: UserWarning: torch.utils.checkpoint: please pass in use_reentrant=True or use_reentrant=False explicitly. The default value of use_reentrant will be updated to be False in the future. To maintain current behavior, pass use_reentrant=True. It is recommended that you use use_reentrant=False. Refer to docs for more details on the differences between the two variants.
+  warnings.warn(
+/home/haihongzhao/anaconda3/envs/dsaa6000i/lib/python3.10/site-packages/torch/utils/checkpoint.py:429: UserWarning: torch.utils.checkpoint: please pass in use_reentrant=True or use_reentrant=False explicitly. The default value of use_reentrant will be updated to be False in the future. To maintain current behavior, pass use_reentrant=True. It is recommended that you use use_reentrant=False. Refer to docs for more details on the differences between the two variants.
+  warnings.warn(
+Epoch: 0, Total Step: 1, Loss: 20.15093231201172
+Invalidate trace cache @ step 0: expected module 6, but got module 0
+[2023-11-11 19:06:01,021] [INFO] [loss_scaler.py:190:update_scale] [deepspeed] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 65536, but hysteresis is 2. Reducing hysteresis to 1
+[2023-11-11 19:06:15,301] [INFO] [loss_scaler.py:183:update_scale] [deepspeed] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 65536, reducing to 32768
+Epoch: 0, Total Step: 11, Loss: 25.864360809326172
+[2023-11-11 19:06:29,581] [INFO] [loss_scaler.py:183:update_scale] [deepspeed] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 32768, reducing to 16384
+Epoch: 0, Total Step: 21, Loss: 20.142189025878906
