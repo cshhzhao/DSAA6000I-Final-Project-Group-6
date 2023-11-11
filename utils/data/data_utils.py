@@ -74,7 +74,7 @@ def get_raw_dataset(dataset_name, output_path, seed, local_rank):
         #     raise RuntimeError(
         #         f"Please check both the train.json and eval.json files in your applications/DeepSpeed-Chat/data directory."
         #     )
-        chat_path = '/data1/haihongzhao/DSAA6000I-Homework/homework/LORA/step1_supervised_finetuning/data'
+        chat_path = '/data1/haihongzhao/DSAA6000I-Final-Project-Group-7/data_for_LLM'
         return raw_datasets.LocalJsonFileDataset(output_path, seed, local_rank,
                                                  dataset_name, chat_path)
     else:
