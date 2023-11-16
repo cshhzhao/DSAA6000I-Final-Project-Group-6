@@ -1,2 +1,2 @@
-"""Fake_News_Detection",Accuracy
-RAWFC_and_LIAR,0.8752584424534804
+"""Fake_News_Detection",Accuracy,Recall
+RAWFC_and_LIAR,0.8725017229496899,0.9270568278201866
