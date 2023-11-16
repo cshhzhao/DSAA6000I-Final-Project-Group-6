@@ -26,13 +26,15 @@ def parse_args():
         "--model_name_or_path_baseline",
         type=str,
         help="Path to baseline model",
-        required=True,
+        default='/data1/haihongzhao/DSAA6000I-Final-Project-Group-7/training_output',
+        required=False,
     )
     parser.add_argument(
         "--model_name_or_path_finetune",
         type=str,
         help="Path to pretrained model",
-        required=True,
+        default='/data1/haihongzhao/DSAA6000I-Final-Project-Group-7/training_output/',
+        required=False,
     )
     parser.add_argument(
         "--num_beams",
@@ -82,7 +84,20 @@ def parse_args():
 
     return args
 
+# 我们要查看假新闻的召回率
+def fake_news_recall_computation(all_samples):
+    ground_truth = [sample['label_bool'] for sample in all_samples]
+    prediction = [sample['pred_bool'] for sample in all_samples]
 
+    # 计算真阳性(TP), 假阳性(FP), 真阴性(TN) 和 假阴性(FN)
+    TP = sum(p == 'False' and gt == 'False' for p, gt in zip(prediction, ground_truth))
+    FN = sum(p == 'True' and gt == 'False' for p, gt in zip(prediction, ground_truth))
+
+    # 计算召回率
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+
+    return recall
+    
 def generate(model,
              tokenizer,
              inputs,
@@ -138,29 +153,47 @@ def print_utils(gen_output):
         print()
 
 import re
+# 这个函数的目的是抽取True or False
 def extract_last_num(text: str) -> float:
-    text = re.sub(r"(\d),(\d)", "\g<1>\g<2>", text)  # 处理形如 123,456
-    res = re.findall(r"(\d+(\.\d+)?)", text)  # 匹配 123456.789
+
+    res = re.findall(r"\b(True|False)\b", text)  # 匹配 123456.789
     if len(res) > 0:
-        num_str = res[-1][0]
-        return float(num_str)
+        return res[-1]
     else:
-        return 0.0
+        return False
 
 def prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
-                prompts, labels, lang):
+                prompts, labels, max_words = 2500):
     all_count = 0
     count = 0
     index = 0
     all_samples, corrects, wrongs = [], [], []
+
+    gd_list = []
+    ans_list = []
+
     # for i in range(0, len(prompts), 2):
     for prompt, label in zip(prompts, labels):
-        # prompt = prompts[i:i+2]
-        # label = labels[i:i+2]
-        index += 1
-        # print(prompt.type)
-        # print(prompt)
         
+        index += 1
+        
+        # check if the prompt length more than threshold
+        promt_words = prompt.split(' ')
+        prompt_words_num = len(promt_words)
+        if(prompt_words_num >= max_words):
+            cut_off_num = prompt_words_num - max_words
+
+            # claim is necessary for fake news detection, but evidence could be cut off to some extendt.
+            split_sentence = prompt.split('Evaluate the following assertion:')
+            
+            evidence = split_sentence[0]
+            evidence_words = evidence.split(' ')
+            cut_off_evidence = " ".join(evidence_words[:-1*cut_off_num])
+            
+            claim = split_sentence[1]
+            prompt = cut_off_evidence + '. ' + 'Evaluate the following assertion:' +  claim
+        
+
         inputs = tokenizer(prompt,  return_tensors="pt").to(device)
 
         r_finetune_g = generate(model_fintuned,
@@ -181,16 +214,18 @@ def prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
         # result['input'] = pro
         result['label'] = label
         # result['label'] = la
-        result['pred_num'] = ans
-        result['label_num'] = gd
+        result['pred_bool'] = ans
+        result['label_bool'] = gd
         if ans == gd:
             count += 1
             corrects.append(result)
         else:
             wrongs.append(result)
+        
         all_samples.append(result)
         all_count += 1
-        print(count, all_count, count/all_count)
+        recall = fake_news_recall_computation(all_samples)
+        print('TP+TN: ',count, ' All Samples: ', all_count, " Accuracy: ",count/all_count, ' Recall ', recall)
     
     
     # with open(Path(args.model_name_or_path_finetune) / f"{lang}_correct.json", "w", encoding='utf-8') as f:
@@ -199,87 +234,19 @@ def prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
     #     json.dump(wrongs, f, ensure_ascii=False, indent=4)
     # with open(Path(args.model_name_or_path_finetune) / f"{lang}_generate_all.json", "w", encoding='utf-8') as f:
     #     json.dump(all_samples, f, ensure_ascii=False, indent=4)
-    print(lang,': ')
-    print(count, all_count, count/all_count)
+    final_recall = fake_news_recall_computation(all_samples)
+    print('Fake News Detection Results:')
+    print('Total TP+TN: ',count, ' Total Samples: ', all_count, " Total Accuracy: ",count/all_count, ' Total Recall ', final_recall)
     print("====================prompt end=============================")
     print()
     print()
-    return count/all_count
-
-
-def batch_prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
-                prompts, labels, lang):
-    all_count = 0
-    count = 0
-    index = 0
-    all_samples, corrects, wrongs = [], [], []
-    # for i in range(0, len(prompts), 2):
-    for i in range(0, len(prompts), args.batch_size):
-    
-    
-    # for prompt, label in zip(prompts, labels):
-        # prompt = prompts[i:i+2]
-        # label = labels[i:i+2]
-        index += 1
-        # print(prompt.type)
-        # print(prompt)
-        prompt = prompts[i: i+ args.batch_size]
-        labels_ = labels[i: i+ args.batch_size]
-        
-        inputs = tokenizer(prompt,  return_tensors="pt", padding=True).to(device)
-
-        outputs = generate(model_fintuned,
-                                tokenizer,
-                                inputs,
-                                num_beams=1,
-                                do_sample=True,
-                                num_return_sequences=args.num_return_sequences,
-                                max_new_tokens=args.max_new_tokens)
-        
-        for output, label in zip(outputs, labels_):
-            
-        
-            ans = extract_last_num(output)
-            result = dict()
-        # ans = extract_last_num(pro)
-            gd = extract_last_num(label)
-            result['index'] = index
-            result['input'] = output
-            # result['input'] = pro
-            result['label'] = label
-            # result['label'] = la
-            result['pred_num'] = ans
-            result['label_num'] = gd
-            if ans == gd:
-                count += 1
-                corrects.append(result)
-            else:
-                wrongs.append(result)
-            all_samples.append(result)
-            all_count += 1
-            print(count, all_count, count/all_count)
-    
-    
-    # with open(Path(args.model_name_or_path_finetune) / f"{lang}_correct.json", "w", encoding='utf-8') as f:
-    #     json.dump(corrects, f, ensure_ascii=False, indent=4)
-    # with open(Path(args.model_name_or_path_finetune) / f"{lang}_wrong.json", "w", encoding='utf-8') as f:
-    #     json.dump(wrongs, f, ensure_ascii=False, indent=4)
-    # with open(Path(args.model_name_or_path_finetune) / f"{lang}_generate_all.json", "w", encoding='utf-8') as f:
-    #     json.dump(all_samples, f, ensure_ascii=False, indent=4)
-    print(lang,': ')
-    print(count, all_count, count/all_count)
-    print("====================prompt end=============================")
-    print()
-    print()
-    return count/all_count
+    return count/all_count, final_recall
 
 
 def main():
     args = parse_args()
 
-    
-
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:1")
 
     tokenizer = load_hf_tokenizer(args.model_name_or_path_finetune,
                                   fast_tokenizer=True)
@@ -293,12 +260,10 @@ def main():
                                      args.model_name_or_path_finetune,
                                      tokenizer, bf16=True)
 
-#    model_baseline.to(device)
     model_fintuned.to(device)
     model_baseline = None
 
     results = {}
-    lang = 'En_gsm8k'
     
         
     prompt_no_input = (f"Below is an instruction that describes a fake news detection task. "
@@ -309,8 +274,7 @@ def main():
                        f"please also give the reasons. \n\n### Response:."
                        )
         
-    # lang = 'English'
-    eval_path = f"/data1/haihongzhao/homework/LORA/step1_supervised_finetuning/data/data/test_use.jsonl"
+    eval_path = f"/data1/haihongzhao/DSAA6000I-Final-Project-Group-7/data_for_LLM/data/test_use.jsonl"
 
     labels = []
     prompts = []
@@ -318,28 +282,25 @@ def main():
     for line in fi:
         line = line.strip()
         o = json.loads(line)
-        prompt = prompt_no_input.format(evidence=o['evidence'],claim=o['claims']) 
+        prompt = prompt_no_input.format(evidence=o['evidence'],claim=o['claim']) 
         prompts.append(prompt)
         labels.append(o["response"])
 
 
     # prompts, labels = shuffle(np.array(prompts), np.array(labels))
     if args.batch_size == 1:
-        result = prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
-                prompts, labels, lang)
+        total_acc, total_recall = prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
+                prompts, labels)
     else:
-        result = batch_prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
-                prompts, labels, lang)
-    results[lang] = result
+        args.batch_size = 1
+        total_acc, total_recall = prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
+                prompts, labels)        
         
-    average = sum(results.values()) / len(results)
     import csv
-    with open(Path(args.model_name_or_path_finetune) / f"MSGM_evaluate_results_bs{args.batch_size}.csv", 'w', newline='') as file:
+    with open(Path(args.model_name_or_path_finetune) / f"Fake_News_Detection_RAWFC_and_LIAR_evaluate_results_bs{args.batch_size}.csv", 'w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Language', 'Accuracy'])
-        for key, value in results.items():
-            writer.writerow([key, value])
-        writer.writerow(['Average', average])
+        writer.writerow(['"Fake_News_Detection', 'Accuracy', 'Recall'])
+        writer.writerow(['RAWFC_and_LIAR', total_acc, total_recall])
 
     
 

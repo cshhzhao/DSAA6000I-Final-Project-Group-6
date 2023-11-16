@@ -49,11 +49,11 @@ class Parser:
                 raise ValueError(f"{event['label']} is not valid")
 
             collated_data = {}
-            # evidence and chosen
-            chosen = f"According to our knowledge and the given information, we think that the claim is {label}."
+            # evidence and response
+            response = f"According to our knowledge and the given information, we think that the claim is {label}."
             collated_data["evidence"] = explain
             collated_data["claim"] = claim            
-            collated_data["chosen"] = chosen
+            collated_data["response"] = response
             self.collated_dataset.append(collated_data)
 
         return self.collated_dataset
