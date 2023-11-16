@@ -301,13 +301,14 @@ def main():
     lang = 'En_gsm8k'
     
         
+    prompt_no_input = (f"Below is an instruction that describes a fake news detection task. "
+                       f'Write a response that appropriately completes the request.\n\n'
+                       f'### Instruction:\n'
+                       f'If there are only True and False categories, based on your knowledge and the '
+                       "following information: {evidence} Evaluate the following assertion: {claim} If possible, "
+                       f"please also give the reasons. \n\n### Response:."
+                       )
         
-        
-    prompt_no_input = (
-    "Below is an instruction that describes a task. "
-    f"Write a response that appropriately completes the request in English. Please answer in English.\n\n"
-    "### Instruction:\n{query}\n\n### Response:"
-    )
     # lang = 'English'
     eval_path = f"/data1/haihongzhao/homework/LORA/step1_supervised_finetuning/data/data/test_use.jsonl"
 
@@ -317,7 +318,7 @@ def main():
     for line in fi:
         line = line.strip()
         o = json.loads(line)
-        prompt = prompt_no_input.format(query=o['query']) 
+        prompt = prompt_no_input.format(evidence=o['evidence'],claim=o['claims']) 
         prompts.append(prompt)
         labels.append(o["response"])
 
