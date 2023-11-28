@@ -3,44 +3,58 @@ import argparse
 from typing import Iterator
 from app_llama import llama_wrapper, load_hf_tokenizer
 from transformers import AutoModelForCausalLM, LlamaTokenizer
+import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+import torch
 
 import gradio as gr
 
 def main():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     tokenizer = load_hf_tokenizer("./checkpoint", fast_tokenizer=True)
+    tokenizer.pad_token=tokenizer.eos_token
     model = llama_wrapper(model_class=AutoModelForCausalLM, model_name_or_path="./checkpoint", tokenizer=tokenizer, bf16=True)
+    model.model.to(device=device)
+
 
     def render_html(text: list[tuple[str, str]]):
         '''
         For chatbot output
         '''
         target_string = text[-1][1]
-        if "answer is :True" in target_string:
+        if "True" in target_string:
             lowest_index = target_string.find("True")
             up_index = lowest_index + len("True")
             text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>True</span>{target_string[up_index:]}"
-        elif "answer is :False" in target_string:
+        elif "False" in target_string:
             lowest_index = target_string.find("False")
             up_index = lowest_index + len("False")
-            text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>False</span>{target_string[up_index:]}"   
-        
+            text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>False</span>{target_string[up_index:]}"
+
         return text
-    
+
     def render_text(text: str):
         '''
         For text
         '''
         target_string = text
-        if "answer is :True" in target_string:
+        if "True" in target_string:
             lowest_index = target_string.find("True")
             up_index = lowest_index + len("True")
             text = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>True</span>{target_string[up_index:]}"
-        elif "answer is :False" in target_string:
+        elif "False" in target_string:
             lowest_index = target_string.find("False")
             up_index = lowest_index + len("False")
             text = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>False</span>{target_string[up_index:]}"
         return text
-    
+
+    def scrape(url):
+        driver = webdriver.Chrome()
+        driver.get(url=url)
+        webpage_content = driver.find_element(by=By.TAG_NAME, value="body").text
+        return webpage_content
+
     def load_file(filepath):
         if os.path.exists(filepath):
             with open(file=filepath, mode="r", encoding="utf-8") as file:
@@ -48,7 +62,7 @@ def main():
             return text
         else:
             raise FileNotFoundError("File not exists")
-    
+
     def clear_and_save_textbox(message: str) -> tuple[str, str]:
         return "", message
 
@@ -69,16 +83,16 @@ def main():
 
     def check_input_token_length(
     message: str, chat_history: list[tuple[str, str]], system_prompt: str
-) -> None:
+    ) -> None:
         input_token_length = model.get_input_token_length(message=message, chat_history=chat_history, system_prompt=system_prompt, file=False)
         if input_token_length > 1024:
             raise gr.Error(
                 f"The accumulated input is too long ({input_token_length} > {1024}). Clear your chat history and try again."
             )
-        
+
     def check_file_input_token_length(
     message: str, system_prompt: str
-) -> None:
+    ) -> None:
         input_token_length = model.get_input_token_length(message=message, system_prompt=system_prompt, file=True)
         if input_token_length > 1024:
             raise gr.Error(
@@ -94,22 +108,32 @@ def main():
             top_p: float,
             top_k: int,
     ) -> Iterator[list[tuple[str, str]]]:
-        if max_new_tokens > 1024:
+        print("Generate function called with message:", message)  # 打印传入的消息
+        if max_new_tokens > 10000:
             raise ValueError
 
         history = history_with_input[:-1]
         generator = model.run(
-            message, history, system_prompt, max_new_tokens, temperature, top_p, top_k
+            message,
+            system_prompt=system_prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            file=True
         )
         try:
             first_response = next(generator)
+            print("First response from model:", first_response)  # 打印模型的第一个响应
             yield history + [(message, first_response)]
         except StopIteration:
+            print("Model did not return any response")  # 打印模型没有返回任何响应的情况
             yield history + [(message, "")]
         for response in generator:
+            print("Next response from model:", response)  # 打印模型的后续响应
             yield history + [(message, response)]
 
-    def file_generate(
+    def file_url_generate(
             message: str,
             system_prompt: str,
             max_new_tokens: int,
@@ -117,14 +141,14 @@ def main():
             top_p: float,
             top_k: int,
     ) -> Iterator[list[tuple[str, str]]]:
-        if max_new_tokens > 1024:
+        if max_new_tokens > 20000:
             raise ValueError
 
         generator = model.run(
             message,
             system_prompt=system_prompt,
             max_new_tokens=max_new_tokens,
-            temerature = temperature,
+            temperature = temperature,
             top_p=top_p,
             top_k=top_k,
             file=True
@@ -214,7 +238,8 @@ def main():
                                 container=False,
                                 show_label=False,
                                 placeholder="Type a message...",
-                                scale=10,
+                                lines=5,
+                                scale=12,
                             )
                             submit_button = gr.Button(
                                 "Submit", variant="primary", scale=1, min_width=0
@@ -237,7 +262,9 @@ def main():
                             value="",
                             container=False,
                             elem_classes="min_check",
+
                         )
+
                     with gr.Column(visible=True) as advanced_column:
                         system_prompt = gr.Textbox(
                             label="System prompt", value="", lines=6
@@ -247,7 +274,7 @@ def main():
                             minimum=1,
                             maximum=1024,
                             step=1,
-                            value=1024,
+                            value=512,
                         )
                         temperature = gr.Slider(
                             label="Temperature",
@@ -266,31 +293,10 @@ def main():
                         top_k = gr.Slider(
                             label="Top-k",
                             minimum=1,
-                            maximum=1000,
+                            maximum=50,
                             step=1,
-                            value=50,
+                            value=20,
                         )
-                with gr.Column(scale=1, visible=True) as prompt_column:
-                    gr.HTML(
-                        '<p style="color: green; font-weight: bold;font-size: 16px;">\N{four leaf clover} prompts</p>'
-                    )
-                    for k, v in prompts.items():
-                        with gr.Tab(k, scroll_to_output=True):
-                            lst = two_columns_list(v, chatbot)
-                prompts_checkbox.change(
-                    lambda x: gr.update(visible=x),
-                    prompts_checkbox,
-                    prompt_column,
-                    queue=False,
-                )
-                advanced_checkbox.change(
-                    lambda x: gr.update(visible=x),
-                    advanced_checkbox,
-                    advanced_column,
-                    queue=False,
-                    api_name=False
-                )
-
             textbox.submit(
                 fn=clear_and_save_textbox,
                 inputs=textbox,
@@ -328,28 +334,24 @@ def main():
                 api_name=False
             )
 
-            button_event_preprocess = (
-                submit_button.click(
+            submit_button.click(
                     fn=clear_and_save_textbox,
                     inputs=textbox,
                     outputs=[textbox, saved_input],
                     api_name=False,
                     queue=False,
-                )
-                .then(
+                ).then(
                     fn=display_input,
                     inputs=[saved_input, chatbot],
                     outputs=chatbot,
                     api_name=False,
                     queue=False,
-                )
-                .then(
+                ).then(
                     fn=check_input_token_length,
                     inputs=[saved_input, chatbot, system_prompt],
                     api_name=False,
                     queue=False,
-                )
-                .success(
+                ).success(
                     fn=generate,
                     inputs=[
                         saved_input,
@@ -368,7 +370,6 @@ def main():
                     outputs=chatbot,
                     api_name=False
                 )
-            )
 
             retry_button.click(
                 fn=delete_prev_fn,
@@ -429,6 +430,7 @@ def main():
                 with gr.Column():
                     file_input = gr.File(label="Upload News File", file_types=[".docx", ".pdf", ".md"], type="filepath", scale=2)
                     submit_file = gr.Button("Detect New")
+                    """
                     system_prompt = gr.Textbox(
                         label="System prompt", value="", lines=6
                     )
@@ -459,7 +461,7 @@ def main():
                         maximum=1000,
                         step=1,
                     )
-                           
+    """
                 with gr.Column():
                     output = gr.HTML(label="Output")
 
@@ -472,9 +474,9 @@ def main():
                 fn=check_file_input_token_length,
                 inputs=[saved_input, system_prompt],
                 api_name=False,
-                queue=False,                
+                queue=False,
             ).success(
-                fn=file_generate,
+                fn=file_url_generate,
                 inputs=[
                     saved_input,
                     system_prompt,
@@ -494,7 +496,37 @@ def main():
 
         with gr.Tab("URL"):
             url_input = gr.Textbox(label="News Url")
+            saved_input = gr.State()
             submit_url = gr.Button("Detect News")
+            output = gr.Text(label="Output")
+
+            submit_url.click(
+                fn=scrape,
+                inputs=url_input,
+                outputs=saved_input,
+                api_name=False
+            ).then(
+                fn=check_file_input_token_length,
+                inputs=[saved_input, system_prompt],
+                api_name=False,
+                queue=False
+            ).then(
+                fn=render_text,
+                inputs=saved_input,
+                outputs=output,
+                api_name=False
+            ).success(
+                fn=file_url_generate,
+                inputs=[
+                    saved_input,
+                    system_prompt,
+                    max_new_tokens,
+                    temperature,
+                    top_p,
+                    top_k,
+                ],
+                outputs=output,
+                api_name=False)
 
     demo.queue(max_size=20).launch(share=False)
 
