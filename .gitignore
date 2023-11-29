@@ -3,3 +3,4 @@ training_output/pytorch_model.bin
 training_output/tokenizer.model
 data_for_LLM/RAWFC/raw_data
 data_for_LLM/LIAR-RAW/raw_data
+checkpoint
