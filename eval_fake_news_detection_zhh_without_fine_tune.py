@@ -40,7 +40,7 @@ def parse_args():
         "--original_llama_saved_path",
         type=str,
         help="Path to pretrained model",
-        default='/data2/Llama-2-7b-hf',
+        default='/data1/haihongzhao/DSAA6000I-Final-Project-Group-7/training_output',
         required=False,
     )    
     parser.add_argument(
@@ -127,7 +127,6 @@ def generate(model,
                                     clean_up_tokenization_spaces=False)
     return result
 
-
 def generate_constrastive_search(model,
                                  tokenizer,
                                  inputs,
@@ -168,6 +167,7 @@ def extract_last_num(text: str) -> float:
         return res[-1]
     else:
         return False
+
 
 def prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
                 prompts, labels, max_words = 2500):
@@ -304,7 +304,7 @@ def main():
                 prompts, labels)        
         
     import csv
-    with open(Path(args.model_name_or_path_finetune) / f"Fake_News_Detection_RAWFC_and_LIAR_evaluate_results_bs{args.batch_size}.csv", 'w', newline='') as file:
+    with open(Path(args.original_llama_saved_path) / f"Original_Llama_2_7b_For_FND_RAWFC_and_LIAR_evaluate_results_bs{args.batch_size}.csv", 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['"Fake_News_Detection', 'Accuracy', 'Recall'])
         writer.writerow(['RAWFC_and_LIAR', total_acc, total_recall])

@@ -466,12 +466,6 @@ if __name__=='__main__':
                                 api_name=False,
                                 queue=True,
                             ).then(
-                                fn=google_search,
-                                inputs=saved_input,
-                                outputs=scrape_content,
-                                api_name=False,
-                                queue=False
-                            ).then(
                                 fn=display_input,
                                 inputs=[saved_input, chatbot],
                                 outputs=chatbot,
@@ -588,6 +582,10 @@ if __name__=='__main__':
                 api_name=False,
                 queue=False,
             ).then(
+                fn=google_search,
+                inputs=saved_input,
+                outputs=scrape_content                
+            ).then(
                 fn=display_input,
                 inputs=[saved_input, chatbot],
                 outputs=chatbot,
@@ -602,6 +600,7 @@ if __name__=='__main__':
                 fn=generate,
                 inputs=[
                     saved_input,
+                    scrape_content,
                     chatbot,
                     system_prompt,
                     max_new_tokens,
@@ -625,6 +624,12 @@ if __name__=='__main__':
                     api_name=False,
                     queue=False,
                 ).then(
+                    fn=google_search,
+                    inputs=saved_input,
+                     outputs=scrape_content,
+                    api_name=False,
+                    queue=False,                    
+                ).then(
                     fn=display_input,
                     inputs=[saved_input, chatbot],
                     outputs=chatbot,
@@ -639,6 +644,7 @@ if __name__=='__main__':
                     fn=generate,
                     inputs=[
                         saved_input,
+                        scrape_content,
                         chatbot,
                         system_prompt,
                         max_new_tokens,
