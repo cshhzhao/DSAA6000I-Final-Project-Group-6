@@ -91,7 +91,8 @@ def fake_news_recall_computation(all_samples):
 
     # 计算真阳性(TP), 假阳性(FP), 真阴性(TN) 和 假阴性(FN)
     TP = sum(p == 'False' and gt == 'False' for p, gt in zip(prediction, ground_truth))
-    FN = sum(p == 'True' and gt == 'False' for p, gt in zip(prediction, ground_truth))
+    # FN = sum(p == 'True' and gt == 'False' for p, gt in zip(prediction, ground_truth))
+    FN = sum( (p == 'True' or p=="Sorry, I do not know.") and gt == 'False' for p, gt in zip(prediction, ground_truth))
 
     # 计算召回率
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0
@@ -154,13 +155,22 @@ def print_utils(gen_output):
 
 import re
 # 这个函数的目的是抽取True or False
-def extract_last_num(text: str) -> float:
+# def extract_last_num(text: str) -> float:
 
-    res = re.findall(r"\b(True|False)\b", text)  # 匹配 123456.789
+#     res = re.findall(r"\b(True|False)\b", text)  # 匹配 123456.789
+#     if len(res) > 0:
+#         return res[-1]
+#     else:
+#         return False
+
+def extract_last_num(text: str) -> float:
+    response = text.split('Response')[-1]
+    res = re.findall(r"(True|False|true|false)", response, re.IGNORECASE)
     if len(res) > 0:
         return res[-1]
     else:
-        return False
+        print("Sorry, I do not know.")
+        return "Sorry, I do not know."
 
 def prompt_eval(args, model_baseline, model_fintuned, tokenizer, device,
                 prompts, labels, max_words = 2500):
@@ -297,7 +307,7 @@ def main():
                 prompts, labels)        
         
     import csv
-    with open(Path(args.model_name_or_path_finetune) / f"Fake_News_Detection_RAWFC_and_LIAR_evaluate_results_bs{args.batch_size}.csv", 'w', newline='') as file:
+    with open(Path(args.model_name_or_path_finetune) / f"Actual_Fake_News_Detection_RAWFC_and_LIAR_evaluate_results_bs{args.batch_size}.csv", 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['"Fake_News_Detection', 'Accuracy', 'Recall'])
         writer.writerow(['RAWFC_and_LIAR', total_acc, total_recall])
