@@ -60,8 +60,8 @@ def google_search(query):
             snippet = item.get('snippet')    
             Snippets = Snippets + snippet
 
-    print(Snippets)
-    return "###Google Search Result###" + Snippets
+    # print(Snippets)
+    return " ###Google Search Result###: " + Snippets
 
 if __name__=='__main__':
     print(os.getcwd())
@@ -85,7 +85,7 @@ if __name__=='__main__':
     # 设置个功能，决定，用户自己提供evidence还是调用google搜索
     def get_inference_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "") -> str:
         if("###Google Search Off###" in message):
-            print(message)
+            # print(message)
             # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
             actual_message = message.split('###Google Search Off###')[0]
             split_object = actual_message.split('claim')
@@ -97,9 +97,9 @@ if __name__=='__main__':
                             f"Evaluate the following assertion {claim}" \
                             f"If possible, please also give the reasons. ### Response:."
 
-            print(system_prompt)
+            # print(system_prompt)
         else:
-            print(message)
+            # print(message)
             # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
             actual_message, google_search_result = message.split('###Google Search On###')
             split_object = actual_message.split('claim')
@@ -111,7 +111,7 @@ if __name__=='__main__':
                             f"Evaluate the following assertion {claim}" \
                             f"If possible, please also give the reasons. ### Response:."
 
-            print(system_prompt)            
+            # print(system_prompt)            
 
         return system_prompt    
 
@@ -422,7 +422,11 @@ if __name__=='__main__':
         try:
             first_response = next(generator)
             print("First response from model:", first_response)  # 打印模型的第一个响应
-            yield history + [(message, first_response)]
+            if("###Google Search On###" in message):
+                yield history + [(message, first_response)]
+            elif("###Google Search Off###" in message):
+                actual_message = message.split('###Google Search Off###')[0]
+                yield history + [(actual_message, first_response)]                
         except StopIteration:
             print("Model did not return any response")  # 打印模型没有返回任何响应的情况
             yield history + [(message, "")]
