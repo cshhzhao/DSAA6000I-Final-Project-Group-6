@@ -61,7 +61,7 @@ def google_search(query):
             Snippets = Snippets + snippet
 
     print(Snippets)
-    return "###" + Snippets
+    return "###Google Search Result###" + Snippets
 
 if __name__=='__main__':
     print(os.getcwd())
@@ -73,27 +73,47 @@ if __name__=='__main__':
                                                 fast_tokenizer=True, legacy=True)
 
         return tokenizer
-
-
+    
+    # 设置个功能，决定，用户自己提供evidence还是调用google搜索
+    # 如果用户在calim:xxxx. 后面加一句###Google Search On###就是使用谷歌搜索的结果作为evidence，否则用户需要自己提供evidence
     def get_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "") -> str:
-        print(message)
-        # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
-        split_object = message.split('claim')
-        claim = split_object[-1]
-        evidence = split_object[0].split('evidence')[-1]
-        system_prompt = f"Below is an instruction that describes a fake news detection task." \
-                        f" Write a response that appropriately completes the request. ### Instruction: " \
-                        f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
-                        f"Evaluate the following assertion {claim}" \
-                        f"If possible, please also give the reasons. ### Response:."
-        # texts = [f"{system_prompt}\n"]
-        # for user_input, response in chat_history:
-        #     texts.append(f"{user_input.strip()} {response.strip()}")
-        # # texts.append(f"{message.strip()}")
-        # print(texts)
-        # return "".join(texts)
-        print(system_prompt)
+
+        system_prompt = message
+            
         return system_prompt
+    
+    # 设置个功能，决定，用户自己提供evidence还是调用google搜索
+    def get_inference_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "") -> str:
+        if("###Google Search Off###" in message):
+            print(message)
+            # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
+            actual_message = message.split('###Google Search Off###')[0]
+            split_object = actual_message.split('claim')
+            claim = split_object[-1]
+            evidence = split_object[0].split('evidence')[-1]
+            system_prompt = f"Below is an instruction that describes a fake news detection task." \
+                            f" Write a response that appropriately completes the request. ### Instruction: " \
+                            f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
+                            f"Evaluate the following assertion {claim}" \
+                            f"If possible, please also give the reasons. ### Response:."
+
+            print(system_prompt)
+        else:
+            print(message)
+            # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
+            actual_message, google_search_result = message.split('###Google Search On###')
+            split_object = actual_message.split('claim')
+            claim = split_object[-1]
+            evidence = google_search_result.split("###Google Search Result###")[-1]
+            system_prompt = f"Below is an instruction that describes a fake news detection task." \
+                            f" Write a response that appropriately completes the request. ### Instruction: " \
+                            f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
+                            f"Evaluate the following assertion {claim}" \
+                            f"If possible, please also give the reasons. ### Response:."
+
+            print(system_prompt)            
+
+        return system_prompt    
 
     def generate_output(
         model,
@@ -279,9 +299,9 @@ if __name__=='__main__':
                 The generated text.
             """
             if not file:
-                prompt = get_prompt(message, chat_history, system_prompt)
+                prompt = get_inference_prompt(message, chat_history, system_prompt)
             else:
-                prompt = get_prompt(message=message, chat_history=[], system_prompt=system_prompt)
+                prompt = get_inference_prompt(message=message, chat_history=[], system_prompt=system_prompt)
             return self.generate(
                 prompt, max_new_tokens, temperature, top_p, top_k, repetition_penalty
             )
