@@ -19,8 +19,7 @@ from threading import Thread
 from typing import Any, Iterator, Union, List
 import math
 import gradio as gr
-from googleapiclient.discovery import build
-import requests
+
 
 def extract_last_num(text: str) -> float:
     response = text.split('Response')[-1]
@@ -37,32 +36,6 @@ def extract_last_num(text: str) -> float:
     # else:
     #     return "Sorry, I don't know."
 
-def google_search(query):
-    api_key = "AIzaSyDYgTehiaaRT0U8LVJnVEHtHFXMo08aeK8"
-
-    cse_id = "92b1ded210d294914"
-    
-    query = query
-
-    search_url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        'q': query,
-        'key': api_key,
-        'cx': cse_id
-    }
-
-    result = requests.get(search_url, params=params)
-
-    data = result.json()
-    Snippets = ""    
-    if 'items' in data:
-        for item in data['items']:
-            snippet = item.get('snippet')    
-            Snippets = Snippets + snippet
-
-    print(Snippets)
-    return "###" + Snippets
-
 if __name__=='__main__':
     print(os.getcwd())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,7 +49,6 @@ if __name__=='__main__':
 
 
     def get_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "") -> str:
-        print(message)
         # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
         split_object = message.split('claim')
         claim = split_object[-1]
@@ -376,7 +348,6 @@ if __name__=='__main__':
 
     def generate(
             message: str,
-            scrape_content: str,
             history_with_input: list[tuple[str, str]],
             system_prompt: str,
             max_new_tokens: int,
@@ -387,8 +358,6 @@ if __name__=='__main__':
         print("Generate function called with message:", message)  # 打印传入的消息
         if max_new_tokens > 10000:
             raise ValueError
-        print(scrape_content)
-        message += scrape_content
         history = history_with_input[:-1]
         generator = model.run(
             message,
@@ -466,12 +435,6 @@ if __name__=='__main__':
                                 api_name=False,
                                 queue=True,
                             ).then(
-                                fn=google_search,
-                                inputs=saved_input,
-                                outputs=scrape_content,
-                                api_name=False,
-                                queue=False
-                            ).then(
                                 fn=display_input,
                                 inputs=[saved_input, chatbot],
                                 outputs=chatbot,
@@ -533,7 +496,6 @@ if __name__=='__main__':
                         clear_button = gr.Button("🗑️  Clear", variant="secondary")
 
                     saved_input = gr.State()
-                    scrape_content = gr.State()
                     with gr.Row():
                         advanced_checkbox = gr.Checkbox(
                             label="Advanced",
