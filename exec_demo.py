@@ -26,9 +26,9 @@ def extract_last_num(text: str) -> float:
     response = text.split('Response')[-1]
     res = re.findall(r"(True|False|true|false)", response, re.IGNORECASE)
     if len(res) > 0:
-        return res[-1]
+        return res[-1].lower()
     else:
-        return "Sorry, I don't know."
+        return "Sorry, I don't know"
 
     # response = text.split('Response')
     # res = re.findall(r"(True|False)", text)
@@ -38,30 +38,17 @@ def extract_last_num(text: str) -> float:
     #     return "Sorry, I don't know."
 
 def google_search(query):
-    api_key = "AIzaSyDYgTehiaaRT0U8LVJnVEHtHFXMo08aeK8"
-
-    cse_id = "92b1ded210d294914"
-    
+    api_key = "AIzaSyB_uFeOOa8GWykvF6SLPbnox4D1LMfxyIk"
+    service = build("customsearch", "v1", developerKey=api_key)
+    cse_id = "c21943deeeb464fb6"
     query = query
 
-    search_url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        'q': query,
-        'key': api_key,
-        'cx': cse_id
-    }
+    result = service.cse().list(q=query, cx=cse_id).execute()
+    Snippets = ""
+    for item in result.get("items", []):
+        Snippets = Snippets + (item['snippet'])
+    return " ###Google Search Result###: " + "evidence:" + Snippets
 
-    result = requests.get(search_url, params=params)
-
-    data = result.json()
-    Snippets = ""    
-    if 'items' in data:
-        for item in data['items']:
-            snippet = item.get('snippet')    
-            Snippets = Snippets + snippet
-
-    # print(Snippets)
-    return " ###Google Search Result###: " + Snippets
 
 if __name__=='__main__':
     print(os.getcwd())
@@ -73,18 +60,33 @@ if __name__=='__main__':
                                                 fast_tokenizer=True, legacy=True)
 
         return tokenizer
-    
+
     # 设置个功能，决定，用户自己提供evidence还是调用google搜索
     # 如果用户在calim:xxxx. 后面加一句###Google Search On###就是使用谷歌搜索的结果作为evidence，否则用户需要自己提供evidence
     def get_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "") -> str:
 
         system_prompt = message
-            
+
         return system_prompt
-    
+
     # 设置个功能，决定，用户自己提供evidence还是调用google搜索
-    def get_inference_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "") -> str:
-        if("###Google Search Off###" in message):
+    def get_inference_prompt(message: str = "", chat_history: list[tuple[str, str]] = [], system_prompt: str = "", file: bool = False) -> str:
+        if("###Google Search On###" in message):
+            # print(message)
+            # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
+            actual_message, google_search_result = message.split('###Google Search On###')
+            split_object = actual_message.split('claim')
+            claim = split_object[-1]
+            evidence = google_search_result.split("###Google Search Result###")[-1]
+            system_prompt = f"Below is an instruction that describes a fake news detection task." \
+                            f" Write a response that appropriately completes the request. ### Instruction: " \
+                            f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
+                            f"Evaluate the following assertion {claim}" \
+                            f"If possible, please also give the reasons. ### Response:."
+
+
+            # print(system_prompt)
+        elif("###Google Search Off###" in message):
             # print(message)
             # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
             actual_message = message.split('###Google Search Off###')[0]
@@ -99,21 +101,28 @@ if __name__=='__main__':
 
             # print(system_prompt)
         else:
-            # print(message)
+          if not file:
             # 保证输入是 evidence：xxxx. claim: xxxx. 就可以切分出咱们要的内容
-            actual_message, google_search_result = message.split('###Google Search On###')
-            split_object = actual_message.split('claim')
-            claim = split_object[-1]
-            evidence = google_search_result.split("###Google Search Result###")[-1]
+            split_object = message.split('###Google Search Result###')
+            evidence = split_object[-1]
+            claim = split_object[0].split('claim')[-1]
             system_prompt = f"Below is an instruction that describes a fake news detection task." \
-                            f" Write a response that appropriately completes the request. ### Instruction: " \
-                            f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
-                            f"Evaluate the following assertion {claim}" \
-                            f"If possible, please also give the reasons. ### Response:."
+                f" Write a response that appropriately completes the request. ### Instruction: " \
+                f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
+                f"Evaluate the following assertion {claim}" \
+                f"If possible, please also give the reasons. ### Response:."
+          else:
+            split_object = message.split('evidence')
+            evidence = split_object[-1]
+            claim = split_object[0]
+            system_prompt = f"Below is an instruction that describes a fake news detection task." \
+                f" Write a response that appropriately completes the request. ### Instruction: " \
+                f"If there are only True and False categories, based on your knowledge and the following information {evidence}" \
+                f"Evaluate the following assertion {claim}" \
+                f"If possible, please also give the reasons. ### Response:."
 
-            # print(system_prompt)            
 
-        return system_prompt    
+        return system_prompt
 
     def generate_output(
         model,
@@ -264,7 +273,6 @@ if __name__=='__main__':
 
             # 定制化输出内容
             detection_result = extract_last_num(results[0])
-            print('预测结果：', results[0])
             yield "We think that the claim is " + detection_result
             # yield "We think that the claim is " + detection_result + "Original Output: " + "".join(outputs)
 
@@ -298,10 +306,7 @@ if __name__=='__main__':
             Yields:
                 The generated text.
             """
-            if not file:
-                prompt = get_inference_prompt(message, chat_history, system_prompt)
-            else:
-                prompt = get_inference_prompt(message=message, chat_history=[], system_prompt=system_prompt)
+            prompt = get_inference_prompt(message=message, chat_history=[], system_prompt=system_prompt, file=file)
             return self.generate(
                 prompt, max_new_tokens, temperature, top_p, top_k, repetition_penalty
             )
@@ -318,14 +323,14 @@ if __name__=='__main__':
         For chatbot output
         '''
         target_string = text[-1][1]
-        if "True" in target_string:
-            lowest_index = target_string.find("True")
-            up_index = lowest_index + len("True")
-            text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>True</span>{target_string[up_index:]}"
-        elif "False" in target_string:
-            lowest_index = target_string.find("False")
-            up_index = lowest_index + len("False")
-            text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>False</span>{target_string[up_index:]}"
+        if "true" in target_string:
+            lowest_index = target_string.find("true")
+            up_index = lowest_index + len("true")
+            text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>true</span>{target_string[up_index:]}"
+        elif "false" in target_string:
+            lowest_index = target_string.find("false")
+            up_index = lowest_index + len("false")
+            text[-1][1] = f"{target_string[:lowest_index]}<span style='background-color: yellow;'>false</span>{target_string[up_index:]}"
 
         return text
 
@@ -350,9 +355,10 @@ if __name__=='__main__':
         webpage_content = driver.find_element(by=By.TAG_NAME, value="body").text
         return webpage_content
 
-    def load_file(filepath):
+    def load_file(files):
+        filepath = files.name
         if os.path.exists(filepath):
-            with open(file=filepath, mode="r", encoding="utf-8") as file:
+            with open(file=filepath, mode="r") as file:
                 text = file.read()
             return text
         else:
@@ -404,11 +410,50 @@ if __name__=='__main__':
             top_p: float,
             top_k: int,
     ) -> Iterator[list[tuple[str, str]]]:
-        print("Generate function called with message:", message)  # 打印传入的消息
         if max_new_tokens > 10000:
             raise ValueError
-        print(scrape_content)
+        scrape_content = "evidence:" + scrape_content
         message += scrape_content
+        history = history_with_input[:-1]
+        generator = model.run(
+            message,
+            system_prompt=system_prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            file=False
+        )
+        try:
+            first_response = next(generator)
+            if("###Google Search On###" in message):
+                yield history + [(message, first_response)]
+            elif("###Google Search Off###" in message):
+                actual_message = message.split('###Google Search Off###')[0]
+                yield history + [(actual_message, first_response)]
+            else:
+                first_response = next(generator)
+                actual_message = message.split('evidence:')[0]
+                yield history + [(actual_message, first_response)]
+        except StopIteration:
+            yield history + [(message, "")]
+        for response in generator:
+            yield history + [(message, response)]
+
+    def file_generate(
+            message: str,
+            file_content: str,
+            history_with_input: list[tuple[str, str]],
+            system_prompt: str,
+            max_new_tokens: int,
+            temperature: float,
+            top_p: float,
+            top_k: int,
+    ) -> Iterator[list[tuple[str, str]]]:
+        if max_new_tokens > 10000:
+            raise ValueError
+        file_content = "evidence:" + file_content
+        message += file_content
         history = history_with_input[:-1]
         generator = model.run(
             message,
@@ -421,46 +466,12 @@ if __name__=='__main__':
         )
         try:
             first_response = next(generator)
-            print("First response from model:", first_response)  # 打印模型的第一个响应
-            if("###Google Search On###" in message):
-                yield history + [(message, first_response)]
-            elif("###Google Search Off###" in message):
-                actual_message = message.split('###Google Search Off###')[0]
-                yield history + [(actual_message, first_response)]                
+            actual_message = message.split('evidence:')[0]
+            yield history + [(actual_message, first_response)]
         except StopIteration:
-            print("Model did not return any response")  # 打印模型没有返回任何响应的情况
             yield history + [(message, "")]
         for response in generator:
-            print("Next response from model:", response)  # 打印模型的后续响应
             yield history + [(message, response)]
-
-    def file_url_generate(
-            message: str,
-            system_prompt: str,
-            max_new_tokens: int,
-            temperature: float,
-            top_p: float,
-            top_k: int,
-    ) -> Iterator[list[tuple[str, str]]]:
-        if max_new_tokens > 20000:
-            raise ValueError
-
-        generator = model.run(
-            message,
-            system_prompt=system_prompt,
-            max_new_tokens=max_new_tokens,
-            temperature = temperature,
-            top_p=top_p,
-            top_k=top_k,
-            file=True
-        )
-        try:
-            first_response = next(generator)
-            yield [(message, first_response)]
-        except StopIteration:
-            yield [(message, "")]
-        for response in generator:
-            yield [(message, response)]
 
 
     def two_columns_list(tab_data, chatbot):
@@ -608,7 +619,7 @@ if __name__=='__main__':
             ).then(
                 fn=google_search,
                 inputs=saved_input,
-                outputs=scrape_content                
+                outputs=scrape_content
             ).then(
                 fn=display_input,
                 inputs=[saved_input, chatbot],
@@ -650,9 +661,9 @@ if __name__=='__main__':
                 ).then(
                     fn=google_search,
                     inputs=saved_input,
-                     outputs=scrape_content,
+                    outputs=scrape_content,
                     api_name=False,
-                    queue=False,                    
+                    queue=False,
                 ).then(
                     fn=display_input,
                     inputs=[saved_input, chatbot],
@@ -682,7 +693,8 @@ if __name__=='__main__':
                     fn=render_html,
                     inputs=chatbot,
                     outputs=chatbot,
-                    api_name=False
+                    api_name=False,
+                    queue=False
                 )
 
             retry_button.click(
@@ -701,6 +713,7 @@ if __name__=='__main__':
                 fn=generate,
                 inputs=[
                     saved_input,
+                    scrape_content,
                     chatbot,
                     system_prompt,
                     max_new_tokens,
@@ -740,10 +753,14 @@ if __name__=='__main__':
 
         with gr.Tab("File"):
             saved_input = gr.State()
+            file_input = gr.State()
             with gr.Row():
                 with gr.Column():
-                    file_input = gr.File(label="Upload News File", file_types=[".docx", ".pdf", ".md"], type="filepath", scale=2)
-                    submit_file = gr.Button("Detect New")
+                    chatbot = gr.Chatbot(label="Chatbot", elem_classes="chatbot")
+                    filebox = gr.File(label="Upload News File", scale=2)
+                    temp = gr.Textbox()
+                    claim_content = gr.Textbox(label="Claim Content", value="", lines=6)
+                    submit_file = gr.Button("Detect News")
                     """
                     system_prompt = gr.Textbox(
                         label="System prompt", value="", lines=6
@@ -776,71 +793,56 @@ if __name__=='__main__':
                         step=1,
                     )
     """
-                with gr.Column():
-                    output = gr.HTML(label="Output")
 
             submit_file.click(
-                fn=load_file,
-                inputs=file_input,
-                outputs=saved_input,
-                api_name=False
-            ).then(
-                fn=check_file_input_token_length,
-                inputs=[saved_input, system_prompt],
+                fn=clear_and_save_textbox,
+                inputs=claim_content,
+                outputs=[claim_content, saved_input],
                 api_name=False,
                 queue=False,
-            ).success(
-                fn=file_url_generate,
-                inputs=[
-                    saved_input,
-                    system_prompt,
-                    max_new_tokens,
-                    temperature,
-                    top_p,
-                    top_k,
-                ],
-                outputs=output,
-                api_name=False,
             ).then(
-                fn=render_text,
-                inputs=output,
-                outputs=output,
-                api_name=False
-            )
-
-        with gr.Tab("URL"):
-            url_input = gr.Textbox(label="News Url")
-            saved_input = gr.State()
-            submit_url = gr.Button("Detect News")
-            output = gr.Text(label="Output")
-
-            submit_url.click(
-                fn=scrape,
-                inputs=url_input,
-                outputs=saved_input,
+                fn=load_file,
+                inputs=filebox,
+                outputs=file_input,
                 api_name=False
             ).then(
-                fn=check_file_input_token_length,
-                inputs=[saved_input, system_prompt],
+                fn = lambda x: x,
+                inputs = file_input,
+                outputs = temp,
                 api_name=False,
                 queue=False
             ).then(
-                fn=render_text,
-                inputs=saved_input,
-                outputs=output,
-                api_name=False
+                fn=display_input,
+                inputs=[saved_input, chatbot],
+                outputs=chatbot,
+                api_name=False,
+                queue=False,
+            ).then(
+                fn=check_input_token_length,
+                inputs=[saved_input, chatbot, system_prompt],
+                api_name=False,
+                queue=False,
             ).success(
-                fn=file_url_generate,
+                fn=file_generate,
                 inputs=[
                     saved_input,
+                    file_input,
+                    chatbot,
                     system_prompt,
                     max_new_tokens,
                     temperature,
                     top_p,
                     top_k,
                 ],
-                outputs=output,
-                api_name=False)
+                outputs=chatbot,
+                api_name=False,
+            ).then(
+                fn=render_html,
+                inputs=chatbot,
+                outputs=chatbot,
+                api_name=False,
+                queue=False
+            )
 
     demo.queue(max_size=20).launch(
         show_api=False,
